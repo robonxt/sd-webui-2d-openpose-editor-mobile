@@ -52,7 +52,7 @@ class Script(scripts.Script):
     super().__init__()
 
   def title(self):
-    return "OpenPose Editor"
+    return "2D OpenPose Editor"
 
   def show(self, is_img2img):
     return scripts.AlwaysVisible
@@ -62,55 +62,61 @@ class Script(scripts.Script):
 
 def on_ui_tabs():
   with gr.Blocks(analytics_enabled=False) as openpose_editor:
-    with gr.Row():
-      with gr.Column():
-        width = gr.Slider(label="width", minimum=64, maximum=2048, value=512, step=64, interactive=True)
-        height = gr.Slider(label="height", minimum=64, maximum=2048, value=512, step=64, interactive=True)
-        with gr.Row():
+    with gr.Row(elem_id="settings-state-initial"):
+      with gr.Column(scale=1):
           add = gr.Button(value="Add", variant="primary")
-          # delete = gr.Button(value="Delete")
-        with gr.Row():
-          reset_btn = gr.Button(value="Reset")
-          json_input = gr.UploadButton(label="Load from JSON", file_types=[".json"], elem_id="openpose_json_button")
-          png_input = gr.UploadButton(label="Detect from Image", file_types=["image"], type="bytes", elem_id="openpose_detect_button")
-          bg_input = gr.UploadButton(label="Add Background Image", file_types=["image"], elem_id="openpose_bg_button")
+          reset_btn = gr.Button(value="Reset Scene")
+      with gr.Column(scale=4):
+          width = gr.Slider(label="width", minimum=256, maximum=2048, value=512, step=16, interactive=True)
+          height = gr.Slider(label="height", minimum=256, maximum=2048, value=512, step=16, interactive=True)
+          
+    with gr.Row(elem_id="settings-state-input"):
+      with gr.Column(scale=1):
+        json_input = gr.UploadButton(label="Load from JSON", file_types=[".json"], elem_id="openpose_json_button")
+        png_input = gr.UploadButton(label="Detect from Image", file_types=["image"], type="bytes", elem_id="openpose_detect_button")
+        bg_input = gr.UploadButton(label="Add Background Image", file_types=["image"], elem_id="openpose_bg_button")
+      with gr.Column(scale=4):
         with gr.Row():
           preset_list = gr.Dropdown(label="Presets", choices=sorted(presets.keys()), interactive=True)
+        with gr.Row():
           preset_load = gr.Button(value="Load Preset")
           preset_save = gr.Button(value="Save Preset")
-
-      with gr.Column():
-        # gradioooooo...
-        canvas = gr.HTML('<canvas id="openpose_editor_canvas" width="512" height="512" style="margin: 0.25rem; border-radius: 0.25rem; border: 0.5px solid"></canvas>')
-        jsonbox = gr.Text(label="json", elem_id="jsonbox", visible=False)
-        with gr.Row():
-          json_output = gr.Button(value="Save JSON")
-          png_output = gr.Button(value="Save PNG")
-          send_t2t = gr.Button(value="Send to txt2img")
-          send_i2i = gr.Button(value="Send to img2img")
-          control_net_max_models_num = getattr(opts, 'control_net_max_models_num', 0)
-          select_target_index = gr.Dropdown([str(i) for i in range(control_net_max_models_num)], label="Send to", value="0", interactive=True, visible=(control_net_max_models_num > 1))
+          
+    with gr.Row(elem_id="settings-state-editor"):
+      canvas = gr.HTML('<canvas id="openpose_editor_canvas" width="512" height="512" style="margin: 0.25rem; border-radius: 0.25rem; border: 0.5px solid"></canvas>')
+      #canvas = gr.HTML(value="<canvas id='openpose_editor_canvas' width='512' height='512' style='align: center; max-width: 100%; height: auto; margin: 0.25rem; border-radius: 0.25rem; border: 0.5px solid;'></canvas>")
+      jsonbox = gr.Text(label="json", elem_id="jsonbox", visible=False)
+      
+    with gr.Row(elem_id="settings-state-output"):
+      json_output = gr.Button(value="Save JSON")
+      png_output = gr.Button(value="Save PNG")
+      send_t2t = gr.Button(value="Send to txt2img")
+      send_i2i = gr.Button(value="Send to img2img")
+      
+    with gr.Row(elem_id="settings-state-send-to-controlnet"):
+      control_net_max_models_num = getattr(opts, 'control_net_max_models_num', 0)
+      select_target_index = gr.Dropdown([str(i) for i in range(control_net_max_models_num)], label="Send to Controlnet", value="0", interactive=True, visible=(control_net_max_models_num > 1))
 
     def estimate(file):
-      global body_estimation
+        global body_estimation
 
-      if body_estimation is None:
-        model_path = os.path.join(models_path, "openpose", "body_pose_model.pth")
-        if not os.path.isfile(model_path):
-          body_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/body_pose_model.pth"
-          load_file_from_url(body_model_path, model_dir=os.path.join(models_path, "openpose"))
-        body_estimation = Body(model_path)
+        if body_estimation is None:
+          model_path = os.path.join(models_path, "openpose", "body_pose_model.pth")
+          if not os.path.isfile(model_path):
+            body_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/body_pose_model.pth"
+            load_file_from_url(body_model_path, model_dir=os.path.join(models_path, "openpose"))
+          body_estimation = Body(model_path)
+          
+        stream = io.BytesIO(file)
+        img = Image.open(stream)
+        candidate, subset = body_estimation(pil2cv(img))
+
+        result = {
+          "candidate": candidate2li(candidate),
+          "subset": subset2li(subset),
+        }
         
-      stream = io.BytesIO(file)
-      img = Image.open(stream)
-      candidate, subset = body_estimation(pil2cv(img))
-
-      result = {
-        "candidate": candidate2li(candidate),
-        "subset": subset2li(subset),
-      }
-      
-      return str(result).replace("'", '"')
+        return str(result).replace("'", '"')
 
     def savePreset(name, data):
       if name:
@@ -119,8 +125,8 @@ def on_ui_tabs():
           json.dump(presets, file)
         return gr.update(choices=sorted(presets.keys()), value=name), json.dumps(data)
       return gr.update(), gr.update()
-
-    dummy_component = gr.Label(visible=False)
+      
+    dummy_component = gr.Label(visible=False)  
     preset = gr.Text(visible=False)
     width.change(None, [width, height], None, _js="(w, h) => {resizeCanvas(w, h)}")
     height.change(None, [width, height], None, _js="(w, h) => {resizeCanvas(w, h)}")
@@ -137,7 +143,7 @@ def on_ui_tabs():
     preset_save.click(savePreset, [dummy_component, dummy_component], [preset_list, preset], _js="savePreset")
     preset_load.click(None, preset, [width, height], _js="loadPreset")
     preset_list.change(lambda selected: json.dumps(presets[selected]), preset_list, preset)
-
-  return [(openpose_editor, "OpenPose Editor", "openpose_editor")]
+    
+  return [(openpose_editor, "2D OpenPose Editor", "openpose_editor")]
 
 script_callbacks.on_ui_tabs(on_ui_tabs)

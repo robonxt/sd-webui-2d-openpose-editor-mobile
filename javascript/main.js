@@ -66,8 +66,8 @@ async function fileToDataUrl(file) {
 }
 
 function calcResolution(width, height){
-    const viewportWidth = window.innerWidth / 2.25;
-    const viewportHeight = window.innerHeight * 0.75;
+    const viewportWidth = window.innerWidth * 0.85;
+    const viewportHeight = window.innerHeight * 0.85;
     const ratio = Math.min(viewportWidth / width, viewportHeight / height);
     return {width: width * ratio, height: height * ratio}
 }
@@ -210,7 +210,7 @@ function addPose(keypoints=undefined){
             left: left,
             top: top,
             strokeWidth: 1,
-            radius: 5,
+            radius: 8,
             fill: color,
             stroke: color,
             originX: 'center',
@@ -400,6 +400,8 @@ function initCanvas(elem){
     })
     json_observer.observe(gradioApp().querySelector("#jsonbox"), { "attributes": true })
 
+    // resize canvas again?
+    //resizeCanvas(...openpose_obj.resolution)
     // document.addEventListener('keydown', function(e) {
     //     if (e.key !== undefined) {
     //         if((e.key == "z" && (e.metaKey || e.ctrlKey || e.altKey))) undo()
@@ -494,7 +496,7 @@ async function loadJSON(file){
 }
 
 function savePreset(){
-    var name = prompt("Preset Name")
+    var name = prompt("New Preset Name")
     const json = serializeJSON()
     return [name, json]
 }
@@ -525,6 +527,7 @@ async function addBackground(file){
         opacity: 0.5
     });
     const img = new Image();
+    img = img.convert("RGB")
     await (img.src = url);
     resizeCanvas(img.width, img.height)
     return [img.width, img.height]
@@ -752,9 +755,10 @@ onUiLoaded(function() {
 
     var canvas_drag_overlay = document.createElement("div");
     canvas_drag_overlay.id = "canvas_drag_overlay"
-    canvas_drag_overlay.style = "pointer-events: none; visibility: hidden; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: white; font-size: 2.5em; font-family: inherit; font-weight: 600; line-height: 100%; background: rgba(0,0,0,0.5); margin: 0.25rem; border-radius: 0.25rem; border: 0.5px solid; position: absolute;"
+    canvas_drag_overlay.style = "pointer-events: none; visibility: hidden; display: flex; alignItems: center; align-items: center; justify-content: center; width: 100%; height: 100%; color: white; font-size: 2.5em; font-family: inherit; font-weight: 600; line-height: 100%; background: rgba(0,0,0,0.5); margin: 0.25rem; border-radius: 0.25rem; border: 0.5px solid; position: absolute;"
 
     var canvas = gradioApp().querySelector("#tab_openpose_editor .canvas-container")
+    // canvas.style= "position: absolute; alignItems: center; align-items: center; justify-content: center; width: 100%; height: 100%;"
     canvas.appendChild(canvas_drag_overlay)
     canvas.addEventListener("dragover", canvas_onDragOver);
     canvas.addEventListener("dragleave", () => gradioApp().querySelector("#canvas_drag_overlay").style.visibility = "hidden");
